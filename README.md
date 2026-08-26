@@ -18,7 +18,7 @@ The **CGPA Calculator** is a C++ application designed according to **COMSATS Uni
 - ⏱️ **Semesters 1-8 Credit Hour Enforcement**: Enforces a strict minimum of **12.0 CH** and maximum of **21.0 CH** per semester (exempt for post 8th semesters).
 - 🧪 **Automatic Course Section Split**: 4 Credit Hour subjects are split into 3 CH Theory + 1 CH Lab.
 - 💾 **JSON & CSV Profile Persistence**: Saves and loads student profiles automatically (`student_record.json` & `student_record.csv`).
-- 📄 **File Export Persistence**: Saves clean official transcript reports to [`CGPA_Transcript.txt`](file:///home/ro919/Projects/Internship-Projects/C++%20Programing/CGPA_Transcript.txt).
+- 📄 **File Export Persistence**: Saves clean official transcript reports to `CGPA_Transcript.txt`.
 
 ---
 

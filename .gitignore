@@ -36,6 +36,10 @@ cmake-build-*/
 CGPA_Transcript.txt
 *.log
 
+# Markdown documentation (ignore all .md files except README.md)
+*.md
+!README.md
+
 # Editor & IDE temporary files / OS metadata
 .vscode/
 .idea/
