@@ -1,0 +1,47 @@
+# Compiled binaries / executables
+CGPA-Calculator
+CGPA-Calculator-GUI
+*.exe
+*.out
+*.app
+*.bin
+
+# Qt build artifacts & MOC files
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+.qmake.stash
+Makefile*
+
+# Object & Link files
+*.o
+*.obj
+*.so
+*.a
+*.dylib
+*.dll
+
+# Build directories & CMake files
+build/
+bin/
+obj/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+cmake-build-*/
+
+# Runtime generated data & output exports
+CGPA_Transcript.txt
+*.log
+
+# Editor & IDE temporary files / OS metadata
+.vscode/
+.idea/
+*.user
+*.user.*
+.DS_Store
+*~
+*.swp
+*.bak
