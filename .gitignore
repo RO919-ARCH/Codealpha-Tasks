@@ -40,7 +40,7 @@ CGPA_Transcript.txt
 # Markdown documentation
 *.md
 !README.md
-!docs/*.md
+!docs/README_CGPA_Calculator.md
 
 # Editor & IDE temporary files / OS metadata
 .vscode/
