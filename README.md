@@ -30,11 +30,7 @@ CGPA-Calculator_Task_1/
 ├── build/                     # Temporary build artifacts (Qt MOC files)
 ├── data/                      # Profile persistence & exported transcripts (.json, .csv, .txt)
 ├── docs/                      # Technical documentation & task guidelines
-│   ├── AI_Agent_Guidelines.md
-│   ├── Evaluation_and_Suggestions.md
-│   ├── Overview_and_Tasks.md
-│   ├── README_CGPA_Calculator.md
-│   └── Task_Phases_Breakdown.md
+│   └── README_CGPA_Calculator.md
 ├── src/                       # Source code directory
 │   ├── cli/
 │   │   └── CGPA-Calculator.cpp
