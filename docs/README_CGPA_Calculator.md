@@ -18,65 +18,23 @@ The **CGPA Calculator** is a C++ application designed according to **COMSATS Uni
 - ⏱️ **Semesters 1-8 Credit Hour Enforcement**: Enforces a strict minimum of **12.0 CH** and maximum of **21.0 CH** per semester (exempt for post 8th semesters).
 - 🧪 **Automatic Course Section Split**: 4 Credit Hour subjects are split into 3 CH Theory + 1 CH Lab.
 - 💾 **JSON & CSV Profile Persistence**: Saves and loads student profiles automatically (`student_record.json` & `student_record.csv`).
-- 📄 **File Export Persistence**: Saves clean official transcript reports to `CGPA_Transcript.txt`.
-
----
-
-## 📁 Directory Structure
-
-```text
-CGPA-Calculator_Task_1/
-├── bin/                       # Compiled binaries (CGPA-Calculator, CGPA-Calculator-GUI)
-├── build/                     # Temporary build artifacts (Qt MOC files)
-├── data/                      # Profile persistence & exported transcripts (.json, .csv, .txt)
-├── docs/                      # Technical documentation & task guidelines
-│   ├── AI_Agent_Guidelines.md
-│   ├── Evaluation_and_Suggestions.md
-│   ├── Overview_and_Tasks.md
-│   ├── README_CGPA_Calculator.md
-│   └── Task_Phases_Breakdown.md
-├── src/                       # Source code directory
-│   ├── cli/
-│   │   └── CGPA-Calculator.cpp
-│   └── gui/
-│       └── main_gui.cpp
-├── Makefile                   # Unified project Makefile
-└── README.md                  # Project documentation
-```
+- 📄 **File Export Persistence**: Saves clean official transcript reports to [`CGPA_Transcript.txt`](file:///home/ro919/Projects/Internship-Projects/C++%20Programing/CGPA_Transcript.txt).
 
 ---
 
 ## 🛠️ Build & Run Instructions
 
-### ⚡ Quick Build (Using Makefile)
-
+### 1. Compile Desktop GUI Application (Qt5)
 ```bash
-# Build both CLI and GUI applications
-make all
-
-# Run CLI application
-./bin/CGPA-Calculator
-
-# Run GUI application
-./bin/CGPA-Calculator-GUI
-
-# Clean build artifacts
-make clean
+moc main_gui.cpp -o main_gui.moc
+g++ -std=c++17 -Wall -Wextra -fPIC $(pkg-config --cflags Qt5Widgets Qt5Core Qt5Gui) main_gui.cpp $(pkg-config --libs Qt5Widgets Qt5Core Qt5Gui) -o CGPA-Calculator-GUI
+./CGPA-Calculator-GUI
 ```
 
-### 🔨 Manual Compilation Commands
-
-#### 1. Compile Desktop GUI Application (Qt5)
+### 2. Compile CLI Console Application (C++17)
 ```bash
-moc src/gui/main_gui.cpp -o build/main_gui.moc
-g++ -std=c++17 -Wall -Wextra -fPIC -Ibuild $(pkg-config --cflags Qt5Widgets Qt5Core Qt5Gui) src/gui/main_gui.cpp $(pkg-config --libs Qt5Widgets Qt5Core Qt5Gui) -o bin/CGPA-Calculator-GUI
-./bin/CGPA-Calculator-GUI
-```
-
-#### 2. Compile CLI Console Application (C++17)
-```bash
-g++ -std=c++17 -Wall -Wextra src/cli/CGPA-Calculator.cpp -o bin/CGPA-Calculator
-./bin/CGPA-Calculator
+g++ -std=c++17 -Wall -Wextra CGPA-Calculator.cpp -o CGPA-Calculator
+./CGPA-Calculator
 ```
 
 ---

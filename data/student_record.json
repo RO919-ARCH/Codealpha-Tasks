@@ -1,0 +1,53 @@
+{
+  "academicStanding": "Summa Cum Laude (Highest Distinction / Rector's List)",
+  "cumulativeCGPA": 3.75,
+  "semesters": [
+    {
+      "courses": [
+        {
+          "courseCode": "Calculus",
+          "creditHours": 3.0,
+          "gradePoints": 4.0,
+          "isLabSection": false,
+          "letterGrade": "A",
+          "marks": 90.0,
+          "remark": "Superior/Excellent"
+        },
+        {
+          "courseCode": "Physics",
+          "creditHours": 3.0,
+          "gradePoints": 3.7,
+          "isLabSection": false,
+          "letterGrade": "A-",
+          "marks": 85.0,
+          "remark": "Excellent"
+        },
+        {
+          "courseCode": "English",
+          "creditHours": 3.0,
+          "gradePoints": 3.3,
+          "isLabSection": false,
+          "letterGrade": "B+",
+          "marks": 80.0,
+          "remark": "Very Good"
+        },
+        {
+          "courseCode": "Programming",
+          "creditHours": 3.0,
+          "gradePoints": 4.0,
+          "isLabSection": false,
+          "letterGrade": "A",
+          "marks": 95.0,
+          "remark": "Superior/Excellent"
+        }
+      ],
+      "semesterGPA": 3.75,
+      "semesterNumber": 1,
+      "totalCredits": 12.0
+    }
+  ],
+  "studentID": "SP22-BCS-999",
+  "studentName": "Test Student",
+  "totalCumulativeCredits": 12.0,
+  "usedPreviousCGPAMode": false
+}

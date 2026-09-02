@@ -13,7 +13,8 @@ moc_*.h
 qrc_*.cpp
 ui_*.h
 .qmake.stash
-Makefile*
+# Build Makefile (do not ignore root Makefile)
+Makefile.old
 
 # Object & Link files
 *.o
@@ -36,9 +37,10 @@ cmake-build-*/
 CGPA_Transcript.txt
 *.log
 
-# Markdown documentation (ignore all .md files except README.md)
+# Markdown documentation
 *.md
 !README.md
+!docs/*.md
 
 # Editor & IDE temporary files / OS metadata
 .vscode/

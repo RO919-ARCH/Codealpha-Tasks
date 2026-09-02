@@ -25,14 +25,26 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+inline std::string resolveDataPath(const std::string &filename) {
+  if (std::filesystem::exists("data/" + filename)) {
+    return "data/" + filename;
+  }
+  if (std::filesystem::exists("data")) {
+    return "data/" + filename;
+  }
+  return filename;
+}
 
 /**
  * @struct GradeInfo
@@ -84,6 +96,60 @@ struct Semester {
     }
   }
 };
+
+inline void to_json(nlohmann::json &j, const Course &c) {
+  j = nlohmann::json{{"courseCode", c.courseCode},
+                     {"creditHours", c.creditHours},
+                     {"letterGrade", c.letterGrade},
+                     {"gradePoints", c.gradePoints},
+                     {"marks", c.marks},
+                     {"remark", c.remark},
+                     {"isLabSection", c.isLabSection}};
+}
+
+inline void from_json(const nlohmann::json &j, Course &c) {
+  if (j.contains("courseCode") && j["courseCode"].is_string())
+    c.courseCode = j["courseCode"].get<std::string>();
+  if (j.contains("creditHours") && j["creditHours"].is_number())
+    c.creditHours = j["creditHours"].get<double>();
+  if (j.contains("letterGrade") && j["letterGrade"].is_string())
+    c.letterGrade = j["letterGrade"].get<std::string>();
+  if (j.contains("gradePoints") && j["gradePoints"].is_number())
+    c.gradePoints = j["gradePoints"].get<double>();
+  if (j.contains("marks") && j["marks"].is_number())
+    c.marks = j["marks"].get<double>();
+  if (j.contains("remark") && j["remark"].is_string())
+    c.remark = j["remark"].get<std::string>();
+  if (j.contains("isLabSection") && j["isLabSection"].is_boolean())
+    c.isLabSection = j["isLabSection"].get<bool>();
+}
+
+inline void to_json(nlohmann::json &j, const Semester &s) {
+  j = nlohmann::json{{"semesterNumber", s.semesterNumber},
+                     {"semesterGPA", s.semesterGPA},
+                     {"totalCredits", s.totalCredits},
+                     {"courses", s.courses}};
+}
+
+inline void from_json(const nlohmann::json &j, Semester &s) {
+  if (j.contains("semesterNumber") && j["semesterNumber"].is_number())
+    s.semesterNumber = j["semesterNumber"].get<int>();
+  if (j.contains("semesterGPA") && j["semesterGPA"].is_number())
+    s.semesterGPA = j["semesterGPA"].get<double>();
+  if (j.contains("totalCredits") && j["totalCredits"].is_number())
+    s.totalCredits = j["totalCredits"].get<double>();
+  if (j.contains("courses") && j["courses"].is_array()) {
+    s.courses.clear();
+    for (const auto &cj : j["courses"]) {
+      try {
+        Course c;
+        from_json(cj, c);
+        s.courses.push_back(c);
+      } catch (...) {
+      }
+    }
+  }
+}
 
 /**
  * @class ComsatsGradeScaleManager
@@ -274,17 +340,6 @@ private:
   double totalCumulativeCredits{0.0};
   double totalCumulativeGradePoints{0.0};
 
-  static std::string escapeJsonString(const std::string &input) {
-    std::string output;
-    for (char c : input) {
-      if (c == '"' || c == '\\') {
-        output += '\\';
-      }
-      output += c;
-    }
-    return output;
-  }
-
 public:
   CGPACalculatorSystem() = default;
 
@@ -324,7 +379,8 @@ public:
 
   /**
    * @brief Feature #2: Target CGPA Simulator ("What-If" Analysis).
-   * Calculates the exact average GPA required per remaining semester to achieve
+   * Calculates the required GPA across remaining credit hours (specified directly,
+   * by individual remaining courses, or by average credits per semester) to achieve
    * a target graduating CGPA.
    */
   void runTargetCGPASimulator() const {
@@ -343,19 +399,54 @@ public:
 
     double targetCGPA = InputValidator::getBoundedDouble(
         "Enter Desired Target CGPA upon Graduation (0.00 - 4.00): ", 0.0, 4.0);
-    int remainingSemesters = InputValidator::getBoundedInt(
-        "Enter Remaining Semesters to Complete Degree (1 - 8): ", 1, 8);
-    double estCreditsPerSem = InputValidator::getBoundedDouble(
-        "Enter Estimated Average Credit Hours per Remaining Semester (12.0 - "
-        "21.0): ",
-        12.0, 21.0);
 
-    double totalFutureCredits = remainingSemesters * estCreditsPerSem;
+    std::cout << "\nSelect Remaining Credits Specification Mode:\n";
+    std::cout << "  [1] Exact Total Remaining Credit Hours\n";
+    std::cout << "  [2] Individual Remaining Courses Breakdown\n";
+    std::cout << "  [3] Average Credits per Semester (Legacy/Estimate)\n";
+    int modeChoice = InputValidator::getBoundedInt("Choose Mode (1-3): ", 1, 3);
+
+    double totalFutureCredits = 0.0;
+    int remainingSemesters = 1;
+
+    struct SimCourse {
+      std::string name;
+      double creditHours;
+    };
+    std::vector<SimCourse> simCourses;
+
+    if (modeChoice == 1) {
+      totalFutureCredits = InputValidator::getBoundedDouble(
+          "Enter Total Exact Remaining Credit Hours for Degree (1.0 - 150.0): ", 1.0, 150.0);
+      remainingSemesters = InputValidator::getBoundedInt(
+          "Enter Remaining Semesters (optional for per-semester GPA, 1 - 8): ", 1, 8);
+    } else if (modeChoice == 2) {
+      int numCourses = InputValidator::getBoundedInt(
+          "Enter Number of Remaining Courses (1 - 30): ", 1, 30);
+      for (int i = 1; i <= numCourses; ++i) {
+        std::string cName = InputValidator::getNonEmptyString(
+            "  Course #" + std::to_string(i) + " Title / Code: ");
+        double cCredits = InputValidator::getBoundedDouble(
+            "  Course #" + std::to_string(i) + " Credit Hours (1.0 - 6.0): ", 1.0, 6.0);
+        simCourses.push_back({cName, cCredits});
+        totalFutureCredits += cCredits;
+      }
+      remainingSemesters = InputValidator::getBoundedInt(
+          "Enter Remaining Semesters (optional for per-semester GPA, 1 - 8): ", 1, 8);
+    } else {
+      remainingSemesters = InputValidator::getBoundedInt(
+          "Enter Remaining Semesters to Complete Degree (1 - 8): ", 1, 8);
+      double estCreditsPerSem = InputValidator::getBoundedDouble(
+          "Enter Estimated Average Credit Hours per Remaining Semester (12.0 - 21.0): ",
+          12.0, 21.0);
+      totalFutureCredits = remainingSemesters * estCreditsPerSem;
+    }
+
     double finalTotalCredits = totalCumulativeCredits + totalFutureCredits;
     double requiredTotalPoints = targetCGPA * finalTotalCredits;
     double requiredFuturePoints =
         requiredTotalPoints - totalCumulativeGradePoints;
-    double requiredGPA = requiredFuturePoints / totalFutureCredits;
+    double requiredGPA = (totalFutureCredits > 0.0) ? (requiredFuturePoints / totalFutureCredits) : 0.0;
 
     std::cout << "\n==========================================================="
                  "==============\n";
@@ -365,15 +456,25 @@ public:
                  "============\n";
     std::cout << " Current Earned Points   : " << totalCumulativeGradePoints
               << "\n";
-    ssize_t reqPts = requiredTotalPoints;
-    (void)reqPts;
     std::cout << " Required Total Points   : " << requiredTotalPoints << "\n";
     std::cout << " Required Future Points  : "
               << (requiredFuturePoints > 0.0 ? requiredFuturePoints : 0.0)
               << "\n";
+    std::cout << " Remaining Credit Hours  : " << totalFutureCredits << " CH\n";
     std::cout << " Total Degree Credits    : " << finalTotalCredits << " CH\n";
     std::cout << "-------------------------------------------------------------"
                  "------------\n";
+
+    if (!simCourses.empty()) {
+      std::cout << " 📚 INDIVIDUAL REMAINING COURSES BREAKDOWN:\n";
+      for (size_t idx = 0; idx < simCourses.size(); ++idx) {
+        std::cout << "   " << (idx + 1) << ". " << std::left << std::setw(28)
+                  << simCourses[idx].name << " : " << std::fixed
+                  << std::setprecision(1) << simCourses[idx].creditHours << " CH\n";
+      }
+      std::cout << "-------------------------------------------------------------"
+                   "------------\n";
+    }
 
     if (requiredGPA <= 0.0) {
       std::cout << "  🎉 GREAT NEWS! You have already achieved or surpassed "
@@ -384,17 +485,21 @@ public:
       std::cout << "  ⚠️ MATHEMATICALLY IMPOSSIBLE:\n";
       std::cout << "  To reach a " << targetCGPA
                 << " CGPA, you would need an average GPA of " << requiredGPA
-                << " per semester.\n";
+                << " in remaining credits.\n";
       std::cout << "  The maximum possible GPA in COMSATS is 4.00.\n";
       double maxPossibleCGPA =
           (totalCumulativeGradePoints + (4.00 * totalFutureCredits)) /
           finalTotalCredits;
       std::cout << "  💡 Maximum achievable CGPA if you get a perfect 4.00 in "
-                   "all remaining semesters: "
+                   "all remaining credits: "
                 << maxPossibleCGPA << " / 4.00\n";
     } else {
       std::cout << "  📌 REQUIRED AVERAGE GPA: " << requiredGPA
-                << " / 4.00 per remaining semester.\n";
+                << " / 4.00 across remaining " << totalFutureCredits << " CH.\n";
+      if (remainingSemesters > 1) {
+        std::cout << "  📌 REQUIRED PER-SEMESTER GPA: " << requiredGPA
+                  << " / 4.00 over " << remainingSemesters << " remaining semesters.\n";
+      }
       std::cout << "  Target Academic Standing: ";
       if (targetCGPA >= 3.75)
         std::cout << "Summa Cum Laude\n";
@@ -421,61 +526,30 @@ public:
   }
 
   void saveToJSONAndCSV() const {
-    std::ofstream jsonFile("student_record.json");
+    std::ofstream jsonFile(resolveDataPath("student_record.json"));
     if (jsonFile.is_open()) {
-      jsonFile << "{\n";
-      jsonFile << "  \"studentName\": \"" << escapeJsonString(studentName)
-               << "\",\n";
-      jsonFile << "  \"studentID\": \"" << escapeJsonString(studentID)
-               << "\",\n";
-      jsonFile << "  \"cumulativeCGPA\": " << std::fixed << std::setprecision(2)
-               << cumulativeCGPA << ",\n";
-      jsonFile << "  \"totalCumulativeCredits\": " << totalCumulativeCredits
-               << ",\n";
-      jsonFile << "  \"academicStanding\": \""
-               << escapeJsonString(getAcademicStanding()) << "\",\n";
-      jsonFile << "  \"usedPreviousCGPAMode\": "
-               << (usedPreviousCGPAMode ? "true" : "false") << ",\n";
+      nlohmann::json j;
+      j["studentName"] = studentName;
+      j["studentID"] = studentID;
+      j["cumulativeCGPA"] = cumulativeCGPA;
+      j["totalCumulativeCredits"] = totalCumulativeCredits;
+      j["academicStanding"] = getAcademicStanding();
+      j["usedPreviousCGPAMode"] = usedPreviousCGPAMode;
 
       if (usedPreviousCGPAMode) {
-        jsonFile << "  \"prevCGPA\": " << prevCGPA << ",\n";
-        jsonFile << "  \"prevTotalCredits\": " << prevTotalCredits << ",\n";
+        j["prevCGPA"] = prevCGPA;
+        j["prevTotalCredits"] = prevTotalCredits;
       }
 
-      jsonFile << "  \"semesters\": [\n";
-      for (size_t i = 0; i < semesters.size(); ++i) {
-        const auto &sem = semesters[i];
-        jsonFile << "    {\n";
-        jsonFile << "      \"semesterNumber\": " << sem.semesterNumber << ",\n";
-        jsonFile << "      \"semesterGPA\": " << sem.semesterGPA << ",\n";
-        jsonFile << "      \"totalCredits\": " << sem.totalCredits << ",\n";
-        jsonFile << "      \"courses\": [\n";
-        for (size_t j = 0; j < sem.courses.size(); ++j) {
-          const auto &c = sem.courses[j];
-          jsonFile << "        {\n";
-          jsonFile << "          \"courseCode\": \""
-                   << escapeJsonString(c.courseCode) << "\",\n";
-          jsonFile << "          \"creditHours\": " << c.creditHours << ",\n";
-          jsonFile << "          \"letterGrade\": \""
-                   << escapeJsonString(c.letterGrade) << "\",\n";
-          jsonFile << "          \"gradePoints\": " << c.gradePoints << ",\n";
-          jsonFile << "          \"marks\": " << c.marks << ",\n";
-          jsonFile << "          \"remark\": \"" << escapeJsonString(c.remark)
-                   << "\"\n";
-          jsonFile << "        }" << (j + 1 < sem.courses.size() ? "," : "")
-                   << "\n";
-        }
-        jsonFile << "      ]\n";
-        jsonFile << "    }" << (i + 1 < semesters.size() ? "," : "") << "\n";
-      }
-      jsonFile << "  ]\n";
-      jsonFile << "}\n";
+      j["semesters"] = semesters;
+
+      jsonFile << j.dump(2) << "\n";
       jsonFile.close();
       std::cout
-          << "  [JSON Saved]: Profile persisted to 'student_record.json'.\n";
+          << "  [JSON Saved]: Profile persisted to '" << resolveDataPath("student_record.json") << "'.\n";
     }
 
-    std::ofstream csvFile("student_record.csv");
+    std::ofstream csvFile(resolveDataPath("student_record.csv"));
     if (csvFile.is_open()) {
       csvFile
           << "Student Name,Student ID,Semester,Course Code,Credit Hours,Letter "
@@ -492,104 +566,89 @@ public:
         }
       }
       csvFile.close();
-      std::cout << "  [CSV Saved]: Spreadsheet record persisted to "
-                   "'student_record.csv'.\n";
+      std::cout << "  [CSV Saved]: Spreadsheet record persisted to '"
+                << resolveDataPath("student_record.csv") << "'.\n";
     }
-  }
-
-  static std::string extractJsonValue(const std::string &line,
-                                      const std::string &key) {
-    size_t keyPos = line.find("\"" + key + "\"");
-    if (keyPos == std::string::npos)
-      return "";
-    size_t colonPos = line.find(":", keyPos);
-    if (colonPos == std::string::npos)
-      return "";
-    std::string valStr = line.substr(colonPos + 1);
-
-    size_t commaPos = valStr.rfind(",");
-    if (commaPos != std::string::npos &&
-        commaPos > valStr.find_last_not_of(" \t\r\n,")) {
-      valStr = valStr.substr(0, commaPos);
-    }
-
-    valStr.erase(0, valStr.find_first_not_of(" \t\r\n"));
-    valStr.erase(valStr.find_last_not_of(" \t\r\n,") + 1);
-
-    if (valStr.size() >= 2 && valStr.front() == '"' && valStr.back() == '"') {
-      return valStr.substr(1, valStr.size() - 2);
-    }
-    return valStr;
   }
 
   bool loadFromJSON() {
-    std::ifstream inFile("student_record.json");
+    std::ifstream inFile(resolveDataPath("student_record.json"));
     if (!inFile.is_open())
       return false;
 
-    semesters.clear();
-    std::string line;
-    Semester currentSem;
-    Course currentCourse;
-
-    while (std::getline(inFile, line)) {
-      if (line.find("\"studentName\"") != std::string::npos) {
-        studentName = extractJsonValue(line, "studentName");
-      } else if (line.find("\"studentID\"") != std::string::npos) {
-        studentID = extractJsonValue(line, "studentID");
-      } else if (line.find("\"usedPreviousCGPAMode\"") != std::string::npos) {
-        usedPreviousCGPAMode =
-            (extractJsonValue(line, "usedPreviousCGPAMode") == "true");
-      } else if (line.find("\"prevCGPA\"") != std::string::npos) {
-        try {
-          prevCGPA = std::stod(extractJsonValue(line, "prevCGPA"));
-        } catch (...) {
-        }
-      } else if (line.find("\"prevTotalCredits\"") != std::string::npos) {
-        try {
-          prevTotalCredits =
-              std::stod(extractJsonValue(line, "prevTotalCredits"));
-        } catch (...) {
-        }
-      } else if (line.find("\"semesterNumber\"") != std::string::npos) {
-        try {
-          currentSem.semesterNumber =
-              std::stoi(extractJsonValue(line, "semesterNumber"));
-        } catch (...) {
-        }
-      } else if (line.find("\"courseCode\"") != std::string::npos) {
-        currentCourse.courseCode = extractJsonValue(line, "courseCode");
-      } else if (line.find("\"creditHours\"") != std::string::npos &&
-                 line.find("\"totalCredits\"") == std::string::npos) {
-        try {
-          currentCourse.creditHours =
-              std::stod(extractJsonValue(line, "creditHours"));
-        } catch (...) {
-        }
-      } else if (line.find("\"letterGrade\"") != std::string::npos) {
-        currentCourse.letterGrade = extractJsonValue(line, "letterGrade");
-      } else if (line.find("\"gradePoints\"") != std::string::npos) {
-        try {
-          currentCourse.gradePoints =
-              std::stod(extractJsonValue(line, "gradePoints"));
-        } catch (...) {
-        }
-      } else if (line.find("\"marks\"") != std::string::npos) {
-        try {
-          currentCourse.marks = std::stod(extractJsonValue(line, "marks"));
-        } catch (...) {
-        }
-      } else if (line.find("\"remark\"") != std::string::npos) {
-        currentCourse.remark = extractJsonValue(line, "remark");
-        currentSem.courses.push_back(currentCourse);
-        currentCourse = Course();
-      } else if (line.find("]") != std::string::npos &&
-                 !currentSem.courses.empty()) {
-        semesters.push_back(currentSem);
-        currentSem = Semester();
-      }
+    nlohmann::json j;
+    try {
+      inFile >> j;
+    } catch (...) {
+      inFile.close();
+      return false;
     }
     inFile.close();
+
+    semesters.clear();
+
+    if (j.contains("studentName") && j["studentName"].is_string()) {
+      studentName = j["studentName"].get<std::string>();
+    }
+    if (j.contains("studentID") && j["studentID"].is_string()) {
+      studentID = j["studentID"].get<std::string>();
+    }
+    if (j.contains("usedPreviousCGPAMode") &&
+        j["usedPreviousCGPAMode"].is_boolean()) {
+      usedPreviousCGPAMode = j["usedPreviousCGPAMode"].get<bool>();
+    }
+    if (j.contains("prevCGPA")) {
+      if (j["prevCGPA"].is_number()) {
+        prevCGPA = j["prevCGPA"].get<double>();
+      } else if (j["prevCGPA"].is_string()) {
+        try {
+          prevCGPA = std::stod(j["prevCGPA"].get<std::string>());
+        } catch (...) {
+        }
+      }
+    }
+    if (j.contains("prevTotalCredits")) {
+      if (j["prevTotalCredits"].is_number()) {
+        prevTotalCredits = j["prevTotalCredits"].get<double>();
+      } else if (j["prevTotalCredits"].is_string()) {
+        try {
+          prevTotalCredits =
+              std::stod(j["prevTotalCredits"].get<std::string>());
+        } catch (...) {
+        }
+      }
+    }
+
+    if (j.contains("semesters") && j["semesters"].is_array()) {
+      try {
+        semesters = j["semesters"].get<std::vector<Semester>>();
+      } catch (...) {
+        for (const auto &semJson : j["semesters"]) {
+          try {
+            Semester sem;
+            from_json(semJson, sem);
+            semesters.push_back(sem);
+          } catch (...) {
+          }
+        }
+      }
+    } else if (j.contains("courses") && j["courses"].is_array()) {
+      // Fallback for flat courses array (e.g. legacy files or simple GUI
+      // export)
+      Semester sem;
+      sem.semesterNumber = 1;
+      for (const auto &courseJson : j["courses"]) {
+        try {
+          Course c;
+          from_json(courseJson, c);
+          sem.courses.push_back(c);
+        } catch (...) {
+        }
+      }
+      if (!sem.courses.empty()) {
+        semesters.push_back(sem);
+      }
+    }
 
     if (usedPreviousCGPAMode) {
       prevTotalPoints = prevCGPA * prevTotalCredits;
@@ -702,11 +761,11 @@ public:
     std::cout << "============================================================="
                  "============\n";
 
-    std::ifstream checkFile("student_record.json");
+    std::ifstream checkFile(resolveDataPath("student_record.json"));
     if (checkFile.is_open()) {
       checkFile.close();
-      std::cout << "  [Saved Profile Found]: A saved student profile "
-                   "('student_record.json') was detected.\n";
+      std::cout << "  [Saved Profile Found]: A saved student profile ('"
+                << resolveDataPath("student_record.json") << "') was detected.\n";
       std::cout << "    1: Load Existing Saved Profile\n";
       std::cout << "    2: Create New Profile (Overwrite)\n";
       int loadChoice =
@@ -843,15 +902,15 @@ public:
 
     std::cout << "\n" << transcriptText;
 
-    std::ofstream outFile("CGPA_Transcript.txt");
+    std::ofstream outFile(resolveDataPath("CGPA_Transcript.txt"));
     if (outFile.is_open()) {
       outFile << transcriptText;
       outFile.close();
-      std::cout << "\n  [Academic Report Export]: Transcript saved to "
-                   "'CGPA_Transcript.txt'.\n";
+      std::cout << "\n  [Academic Report Export]: Transcript saved to '"
+                << resolveDataPath("CGPA_Transcript.txt") << "'.\n";
     } else {
       std::cout
-          << "\n  [Warning]: Could not create 'CGPA_Transcript.txt' file.\n";
+          << "\n  [Warning]: Could not create '" << resolveDataPath("CGPA_Transcript.txt") << "' file.\n";
     }
   }
 };
